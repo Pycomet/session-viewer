@@ -2,7 +2,7 @@ import { MAIN_LANE, type Lane, type Session, type Step } from '../../core/model'
 
 export interface GraphNode {
   id: string;
-  type: 'step' | 'turn' | 'lane';
+  type: 'step' | 'turn' | 'lane' | 'more';
   label: string;
   laneId: string;
   isError: boolean;
@@ -19,9 +19,13 @@ export interface GraphEdge {
 
 export interface FlowOptions {
   expandedTurns: Set<string>;
-  collapsedLanes: Set<string>;
+  expandedLanes: Set<string>; // helper lanes are folded unless listed here
+  fullTurns: Set<string>; // open turns longer than TURN_CAP show every step only if listed here
   visible: Set<string> | null;
 }
+
+// An open turn shows at most this many of its latest steps; earlier ones fold into one "more" node.
+export const TURN_CAP = 40;
 
 const plural = (n: number) => `${n} step${n === 1 ? '' : 's'}`;
 
@@ -35,8 +39,20 @@ export function turnsOf(session: Session): { id: string; steps: Step[] }[] {
   return turns;
 }
 
-export function defaultExpandedTurns(session: Session, n = 3): Set<string> {
-  return new Set(turnsOf(session).slice(-n).map((t) => t.id));
+// The last n turns that have something to show (all turns when live, the ones up to the cursor in replay).
+export function defaultExpandedTurns(session: Session, n = 3, visible: Set<string> | null = null): Set<string> {
+  const shown = turnsOf(session).filter((t) => !visible || t.steps.some((s) => visible.has(s.id)));
+  return new Set(shown.slice(-n).map((t) => t.id));
+}
+
+// Manual open (true) / close (false) clicks win over the defaults.
+export function applyOverrides(defaults: Set<string>, overrides: Map<string, boolean>): Set<string> {
+  const out = new Set(defaults);
+  for (const [id, open] of overrides) {
+    if (open) out.add(id);
+    else out.delete(id);
+  }
+  return out;
 }
 
 export function buildFlowGraph(session: Session, opts: FlowOptions): { nodes: GraphNode[]; edges: GraphEdge[] } {
@@ -55,17 +71,24 @@ export function buildFlowGraph(session: Session, opts: FlowOptions): { nodes: Gr
   const expandedSteps: Step[] = [];
   const mainIds: string[] = [];
   turnsOf(session).forEach((turn, i) => {
-    const steps = turn.steps.filter(isVisible);
+    let steps = turn.steps.filter(isVisible);
     if (steps.length === 0) return;
-    if (opts.expandedTurns.has(turn.id)) {
-      for (const s of steps) {
-        nodes.push(stepNode(s));
-        mainIds.push(s.id);
-        expandedSteps.push(s);
-      }
-    } else {
+    if (!opts.expandedTurns.has(turn.id)) {
       nodes.push({ id: turn.id, type: 'turn', label: `Turn ${i + 1} · ${plural(steps.length)}`, laneId: MAIN_LANE, isError: steps.some((s) => s.isError), count: steps.length, step: null });
       mainIds.push(turn.id);
+      return;
+    }
+    if (steps.length > TURN_CAP && !opts.fullTurns.has(turn.id)) {
+      const hidden = steps.slice(0, steps.length - TURN_CAP);
+      const id = `more:${turn.id}`;
+      nodes.push({ id, type: 'more', label: `${hidden.length} earlier ${hidden.length === 1 ? 'step' : 'steps'}`, laneId: MAIN_LANE, isError: hidden.some((s) => s.isError), count: hidden.length, step: null });
+      mainIds.push(id);
+      steps = steps.slice(-TURN_CAP);
+    }
+    for (const s of steps) {
+      nodes.push(stepNode(s));
+      mainIds.push(s.id);
+      expandedSteps.push(s);
     }
   });
   chain(mainIds);
@@ -77,7 +100,7 @@ export function buildFlowGraph(session: Session, opts: FlowOptions): { nodes: Gr
     const spawn = (target: string) => {
       if (parentId) edges.push({ id: `spawn:${parentId}->${target}`, source: parentId, target, kind: 'spawn' });
     };
-    if (opts.collapsedLanes.has(lane.id)) {
+    if (!opts.expandedLanes.has(lane.id)) {
       const id = `lane:${lane.id}`;
       nodes.push({ id, type: 'lane', label: `${lane.label} · ${plural(steps.length)}`, laneId: lane.id, isError: steps.some((s) => s.isError), count: steps.length, step: null });
       spawn(id);

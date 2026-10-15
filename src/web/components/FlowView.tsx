@@ -2,37 +2,29 @@ import { Background, Controls, MiniMap, Panel, ReactFlow, useNodesState, useReac
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Session, Step } from '../../core/model';
 import { autoLayout, NODE_H, NODE_W } from '../graph/autoLayout';
-import { buildFlowGraph, defaultExpandedTurns, turnsOf, type GraphNode } from '../graph/buildFlowGraph';
+import { applyOverrides, buildFlowGraph, defaultExpandedTurns, type GraphNode } from '../graph/buildFlowGraph';
+import { followTarget } from '../graph/follow';
 import { mergePositions } from '../graph/positions';
 import { useSavedLayout } from '../useSavedLayout';
 import { StepNode } from './StepNode';
 
 const nodeTypes = { sv: StepNode };
-const toggle = (set: Set<string>, id: string) => {
-  const next = new Set(set);
-  if (next.has(id)) next.delete(id);
-  else next.add(id);
-  return next;
-};
+const NO_LANES = new Set<string>();
+
+// Record a manual open/close, flipping whatever the node currently shows.
+const flip = (overrides: Map<string, boolean>, id: string, isOpen: boolean) => new Map(overrides).set(id, !isOpen);
 
 export function FlowView({ session, visible, onSelect, follow }: { session: Session; visible: Set<string> | null; onSelect: (s: Step) => void; follow: boolean }) {
-  const [expandedTurns, setExpandedTurns] = useState(() => defaultExpandedTurns(session));
-  const [collapsedLanes, setCollapsedLanes] = useState<Set<string>>(new Set());
+  // Defaults are recomputed from the session (live) or the replay cursor; clicks are kept as overrides on top.
+  const [turnOverrides, setTurnOverrides] = useState<Map<string, boolean>>(new Map());
+  const [laneOverrides, setLaneOverrides] = useState<Map<string, boolean>>(new Map());
+  const [fullTurns, setFullTurns] = useState<Set<string>>(new Set());
   const { saved, savePosition, reset } = useSavedLayout(session.id, 'flow');
   const { setCenter } = useReactFlow();
 
-  // Keep newly arriving turns open while live, without re-opening ones the user folded.
-  const lastTurnCount = useRef(0);
-  useEffect(() => {
-    const count = turnsOf(session).length;
-    if (lastTurnCount.current > 0 && count > lastTurnCount.current) {
-      const latest = defaultExpandedTurns(session, 1);
-      setExpandedTurns((prev) => new Set([...prev, ...latest]));
-    }
-    lastTurnCount.current = count;
-  }, [session]);
-
-  const graph = useMemo(() => buildFlowGraph(session, { expandedTurns, collapsedLanes, visible }), [session, expandedTurns, collapsedLanes, visible]);
+  const expandedTurns = useMemo(() => applyOverrides(defaultExpandedTurns(session, 3, visible), turnOverrides), [session, visible, turnOverrides]);
+  const expandedLanes = useMemo(() => applyOverrides(NO_LANES, laneOverrides), [laneOverrides]);
+  const graph = useMemo(() => buildFlowGraph(session, { expandedTurns, expandedLanes, fullTurns, visible }), [session, expandedTurns, expandedLanes, fullTurns, visible]);
   const positions = useMemo(() => mergePositions(autoLayout(graph.nodes, graph.edges), saved), [graph, saved]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
@@ -45,12 +37,19 @@ export function FlowView({ session, visible, onSelect, follow }: { session: Sess
     [graph],
   );
 
-  const lastId = graph.nodes[graph.nodes.length - 1]?.id;
+  const lastCentered = useRef<string | null>(null);
+  const newest = graph.nodes[graph.nodes.length - 1]?.id;
   useEffect(() => {
-    if (!follow || !lastId || !positions[lastId]) return;
-    const p = positions[lastId];
+    if (!follow) {
+      lastCentered.current = null;
+      return;
+    }
+    const target = followTarget(lastCentered.current, newest, follow);
+    const p = target ? positions[target] : undefined;
+    if (!target || !p) return;
+    lastCentered.current = target;
     setCenter(p.x + NODE_W / 2, p.y + NODE_H / 2, { zoom: 1, duration: 300 });
-  }, [follow, lastId, positions, setCenter]);
+  }, [follow, newest, positions, setCenter]);
 
   return (
     <ReactFlow
@@ -61,13 +60,14 @@ export function FlowView({ session, visible, onSelect, follow }: { session: Sess
       onNodeDragStop={(_, node) => savePosition(node.id, node.position)}
       onNodeClick={(_, node) => {
         const n = node.data as unknown as GraphNode;
-        if (n.type === 'turn') setExpandedTurns((s) => toggle(s, n.id));
-        else if (n.type === 'lane') setCollapsedLanes((s) => toggle(s, n.laneId));
+        if (n.type === 'turn') setTurnOverrides((o) => flip(o, n.id, false));
+        else if (n.type === 'more') setFullTurns((s) => new Set(s).add(n.id.slice('more:'.length)));
+        else if (n.type === 'lane') setLaneOverrides((o) => flip(o, n.laneId, false));
         else if (n.step) onSelect(n.step);
       }}
       onNodeDoubleClick={(_, node) => {
         const n = node.data as unknown as GraphNode;
-        if (n.step?.laneId && n.step.laneId !== 'main') setCollapsedLanes((s) => toggle(s, n.step!.laneId));
+        if (n.step?.laneId && n.step.laneId !== 'main') setLaneOverrides((o) => flip(o, n.step!.laneId, true));
       }}
       fitView
       minZoom={0.1}
