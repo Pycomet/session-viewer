@@ -30,14 +30,16 @@ export function FlowView({ session, visible, onSelect, follow, pulse, onQuestEve
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const pulseId = pulseNodeId(graph.nodes, pulse);
-  // Bring the tour's highlighted box into view whenever the highlight moves to a new box.
-  const lastPulse = useRef<string | null>(null);
+  // Bring the tour's highlighted box into view once per quest item, keeping the user's zoom.
+  // Keyed on the item (pulse), not the box id, so scrubbing or folding never re-centres the camera.
+  const centredFor = useRef<PulseTarget>(null);
   useEffect(() => {
-    const target = followTarget(lastPulse.current, pulseId ?? undefined, true);
-    lastPulse.current = pulseId;
-    const p = target ? positions[target] : undefined;
-    if (p) setCenter(p.x + NODE_W / 2, p.y + NODE_H / 2, { zoom: 1, duration: 400 });
-  }, [pulseId, positions, setCenter]);
+    if (pulse === centredFor.current) return;
+    const p = pulseId ? positions[pulseId] : undefined;
+    if (!p) return; // target not on screen yet; centre when it appears
+    centredFor.current = pulse;
+    setCenter(p.x + NODE_W / 2, p.y + NODE_H / 2, { duration: 400 });
+  }, [pulse, pulseId, positions, setCenter]);
   useEffect(() => {
     setNodes(graph.nodes.map((n) => ({ id: n.id, type: 'sv', position: positions[n.id], data: { ...n, pulse: n.id === pulseId } as unknown as Record<string, unknown>, width: NODE_W, height: NODE_H })));
   }, [graph, positions, pulseId, setNodes]);

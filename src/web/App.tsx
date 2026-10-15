@@ -24,6 +24,7 @@ export function App() {
   const [follow, setFollow] = useState(true);
   const [playing, setPlaying] = useState(false);
   const [highlightList, setHighlightList] = useState(false);
+  const [tourRun, setTourRun] = useState(0); // bumps on "?" so the views remount with their default folds
   const [quest, dispatch] = useReducer(questReducer, undefined, () => loadQuest());
   const emit = useCallback((event: QuestEvent) => dispatch({ type: 'event', event }), []);
 
@@ -47,11 +48,11 @@ export function App() {
     setCursor(null);
     setSelected(null);
     if (!activeId) return;
+    setHighlightList(false);
     if (activeId === DEMO_ID) {
       setSession(demoSession());
       return;
     }
-    setHighlightList(false);
     return subscribeSession(activeId, setSession);
   }, [activeId]);
 
@@ -81,6 +82,12 @@ export function App() {
     if (id !== DEMO_ID) setPlaying(false);
     setActiveId(id);
   };
+  const restartTour = () => {
+    setSelected(null);
+    setHighlightList(false);
+    setTourRun((n) => n + 1);
+    dispatch({ type: 'reset' });
+  };
   const onReplayChange = (c: number | null) => {
     setPlaying(false);
     setCursor(c);
@@ -101,7 +108,7 @@ export function App() {
 
   return (
     <div className="app">
-      <SessionList sessions={sessions} activeId={activeId} onSelect={selectSession} onTour={() => dispatch({ type: 'reset' })} highlight={highlightList} />
+      <SessionList sessions={sessions} activeId={activeId} onSelect={selectSession} onTour={restartTour} highlight={highlightList} />
       <main className="main">
         {session ? (
           <>
@@ -112,7 +119,7 @@ export function App() {
               <label><input type="checkbox" checked={follow} onChange={(e) => setFollow(e.target.checked)} /> Follow latest</label>
             </div>
             <div className="canvas">
-              <ReactFlowProvider key={`${session.id}-${view}`}>
+              <ReactFlowProvider key={`${session.id}-${view}-${tourRun}`}>
                 {view === 'flow' ? (
                   <FlowView session={session} visible={visible} onSelect={onSelectStep} follow={follow && (cursor === null || playing)} pulse={pulse} onQuestEvent={emit} />
                 ) : (
