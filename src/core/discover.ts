@@ -1,4 +1,4 @@
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { open, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { SessionSummary } from './model';
 import { subagentDir } from './load';
@@ -10,6 +10,28 @@ async function safeReaddir(dir: string): Promise<string[]> {
     return await readdir(dir);
   } catch {
     return [];
+  }
+}
+
+// The session list only needs cwd (in the first records) and the latest ai-title (re-written near the end),
+// so read a bounded window from each end instead of whole logs that can be tens of MB.
+export const HEAD_BYTES = 64 * 1024;
+export const TAIL_BYTES = 256 * 1024;
+
+export async function readEnds(path: string): Promise<string> {
+  const file = await open(path, 'r');
+  try {
+    const { size } = await file.stat();
+    const read = async (position: number, length: number) => {
+      const buf = Buffer.alloc(length);
+      const { bytesRead } = await file.read(buf, 0, length, position);
+      return buf.subarray(0, bytesRead).toString('utf8');
+    };
+    if (size <= HEAD_BYTES + TAIL_BYTES) return read(0, size);
+    // The newline keeps the two cut-off partial lines apart; quickMeta skips them as unparseable.
+    return `${await read(0, HEAD_BYTES)}\n${await read(size - TAIL_BYTES, TAIL_BYTES)}`;
+  } finally {
+    await file.close();
   }
 }
 
@@ -49,7 +71,7 @@ export async function listSessions(root: string, limit = 200): Promise<SessionSu
       projectDir: f.projectDir,
       updatedAt: f.mtime.toISOString(),
       sizeBytes: f.size,
-      ...quickMeta(await readFile(join(f.projectDir, `${f.id}.jsonl`), 'utf8')),
+      ...quickMeta(await readEnds(join(f.projectDir, `${f.id}.jsonl`))),
     })),
   );
 }
