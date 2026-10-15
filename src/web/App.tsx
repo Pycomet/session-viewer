@@ -1,4 +1,6 @@
+import { ReactFlowProvider } from '@xyflow/react';
 import { useEffect, useState } from 'react';
+import { FlowView } from './components/FlowView';
 import type { Session, SessionSummary } from '../core/model';
 import { fetchSessions, subscribeSession } from './api';
 import { SessionList } from './components/SessionList';
@@ -13,7 +15,11 @@ export function App() {
     <div className="app">
       <SessionList sessions={sessions} activeId={activeId} onSelect={setActiveId} />
       <main className="main">
-        <pre style={{ padding: 12 }}>{session ? `${session.title ?? session.id}: ${session.lanes.map((l) => `${l.label} (${l.steps.length})`).join(', ')}` : 'Pick a session'}</pre>
+        {session ? (
+          <ReactFlowProvider>
+            <div className="canvas"><FlowView session={session} visible={null} onSelect={() => {}} follow={false} /></div>
+          </ReactFlowProvider>
+        ) : <p className="empty">Pick a session</p>}
       </main>
     </div>
   );
