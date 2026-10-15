@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { GraphNode } from '../../src/web/graph/buildFlowGraph';
-import { FRESH_QUEST, isComplete, nextItem, pulseNodeId, QUEST_ITEMS, questReducer, type QuestEvent } from '../../src/web/quest/quest';
+import { FRESH_QUEST, isComplete, nextItem, onLoad, pulseNodeId, QUEST_ITEMS, questReducer, type QuestEvent } from '../../src/web/quest/quest';
 
 const ALL_EVENTS: QuestEvent[] = ['playback-done', 'step-selected', 'turn-opened', 'lane-opened', 'error-selected', 'view-map', 'replay-moved', 'node-dragged'];
 const ev = (event: QuestEvent) => ({ type: 'event' as const, event });
@@ -32,6 +32,21 @@ describe('quest rules', () => {
     for (const e of ALL_EVENTS) s = questReducer(s, ev(e));
     s = questReducer(questReducer(s, { type: 'dismiss' }), { type: 'reset' });
     expect(s).toEqual(FRESH_QUEST);
+  });
+});
+
+describe('onLoad', () => {
+  it('first visit: open the demo and play it', () => {
+    expect(onLoad(FRESH_QUEST)).toEqual({ openDemo: true, play: true });
+  });
+
+  it('reload mid-tour: reopen the demo, replay only if "watch" is not done yet', () => {
+    expect(onLoad({ started: true, done: [], dismissed: false })).toEqual({ openDemo: true, play: true });
+    expect(onLoad({ started: true, done: ['watch', 'step'], dismissed: false })).toEqual({ openDemo: true, play: false });
+  });
+
+  it('tour skipped or finished: leave the user alone', () => {
+    expect(onLoad({ started: true, done: ['watch'], dismissed: true })).toEqual({ openDemo: false, play: false });
   });
 });
 

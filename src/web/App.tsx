@@ -11,7 +11,7 @@ import { ReplayBar } from './components/ReplayBar';
 import { SessionList } from './components/SessionList';
 import { timelineOf, visibleUpTo } from './graph/replay';
 import { PLAYBACK_MS, playbackCursor } from './quest/playback';
-import { isComplete, nextItem, questReducer, type QuestEvent } from './quest/quest';
+import { isComplete, nextItem, onLoad, questReducer, type QuestEvent } from './quest/quest';
 import { loadQuest, saveQuest } from './quest/storage';
 
 export function App() {
@@ -30,20 +30,22 @@ export function App() {
   useEffect(() => saveQuest(quest), [quest]);
   useEffect(() => void fetchSessions().then(setSessions).catch(() => setSessions([])), []);
 
-  // First run (or "?" pressed): open the demo and play it like a live session.
+  // Page load, first run, or "?" pressed: reopen the demo for an unfinished tour, playing it if not yet watched.
   useEffect(() => {
-    if (quest.started) return;
-    dispatch({ type: 'start' });
+    const { openDemo, play } = onLoad(quest);
+    if (!quest.started) dispatch({ type: 'start' });
+    if (!openDemo) return;
     setView('flow');
     setActiveId(DEMO_ID);
-    setPlaying(true);
+    setPlaying(play);
+    // Only on load and when the tour restarts (started flips back to false); not on every tick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quest.started]);
 
   useEffect(() => {
     setSession(null);
     setCursor(null);
     setSelected(null);
-    if (activeId !== DEMO_ID) setPlaying(false);
     if (!activeId) return;
     if (activeId === DEMO_ID) {
       setSession(demoSession());
@@ -73,6 +75,12 @@ export function App() {
     return () => clearInterval(timer);
   }, [playing, session, timeline.length, emit]);
 
+  // Stopping playback lives in this click handler, not the activeId effect: on first load that effect runs with
+  // activeId still null in the same commit that starts playback, and would cancel it immediately.
+  const selectSession = (id: string) => {
+    if (id !== DEMO_ID) setPlaying(false);
+    setActiveId(id);
+  };
   const onReplayChange = (c: number | null) => {
     setPlaying(false);
     setCursor(c);
@@ -93,7 +101,7 @@ export function App() {
 
   return (
     <div className="app">
-      <SessionList sessions={sessions} activeId={activeId} onSelect={setActiveId} onTour={() => dispatch({ type: 'reset' })} highlight={highlightList} />
+      <SessionList sessions={sessions} activeId={activeId} onSelect={selectSession} onTour={() => dispatch({ type: 'reset' })} highlight={highlightList} />
       <main className="main">
         {session ? (
           <>
@@ -121,6 +129,7 @@ export function App() {
           <QuestCard
             state={quest}
             onSkip={() => {
+              if (playing) setCursor(null); // don't leave the demo frozen half-way through
               setPlaying(false);
               dispatch({ type: 'dismiss' });
             }}

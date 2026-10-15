@@ -69,7 +69,14 @@ export function questReducer(state: QuestState, action: QuestAction): QuestState
 
 export const nextItem = (state: QuestState): QuestItem | null => QUEST_ITEMS.find((i) => !state.done.includes(i.id)) ?? null;
 
-export const isComplete = (state: QuestState) => QUEST_ITEMS.every((i) => state.done.includes(i.id));
+// What to do when the page loads (or the tour restarts): first visits and unfinished tours reopen the demo,
+// and it only replays if the user hasn't watched it yet.
+export function onLoad(state: QuestState): { openDemo: boolean; play: boolean } {
+  if (state.started && state.dismissed) return { openDemo: false, play: false };
+  return { openDemo: true, play: !state.done.includes('watch') };
+}
+
+export const isComplete =(state: QuestState) => QUEST_ITEMS.every((i) => state.done.includes(i.id));
 
 // The flow-view node that should pulse for this target, or null if none is on screen.
 export function pulseNodeId(nodes: GraphNode[], target: PulseTarget): string | null {
