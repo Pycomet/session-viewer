@@ -1,0 +1,42 @@
+{
+  "name": "session-viewer",
+  "version": "0.1.0",
+  "description": "See your AI coding agent sessions as a picture",
+  "type": "module",
+  "bin": {
+    "session-viewer": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "dev:server": "tsx watch src/server/cli.ts --no-open",
+    "dev:web": "vite",
+    "build": "vite build && tsup src/server/cli.ts --format esm --out-dir dist --target node20"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.5",
+    "hono": "^4.13.13",
+    "open": "^11.0.4"
+  },
+  "devDependencies": {
+    "@dagrejs/dagre": "^3.1.1",
+    "@types/node": "^26.6.5",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^6.1.2",
+    "@xyflow/react": "^12.12.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tsup": "^9.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.4"
+  }
+}
