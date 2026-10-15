@@ -21,6 +21,9 @@ Runs only on `127.0.0.1`, reads `~/.claude/projects` on your machine, and makes 
 ## Known limits (v1)
 Claude Code only. Files touched via shell commands (`Bash`) aren't shown on the project map. Claude Code's log format is undocumented and may change.
 
+## Deploy
+Pushing to GitHub, running your own copy, and publishing to npm: see [docs/DEPLOY.md](docs/DEPLOY.md).
+
 ## Develop
     npm install
     npm run dev:server   # API on :4300

@@ -14,6 +14,7 @@
   },
   "scripts": {
     "test": "vitest run",
+    "prepublishOnly": "npm test && npm run build",
     "typecheck": "tsc --noEmit",
     "dev:server": "tsx watch src/server/cli.ts --no-open",
     "dev:web": "vite",
