@@ -10,6 +10,8 @@ See your Claude Code sessions as a picture: live, replayable, and arrangeable.
 - **Replay:** drag the slider to see the session at any moment.
 - **Arrange:** drag boxes; your layout is saved per session.
 
+**First time?** The viewer opens a short demo and a 2-minute quest that walks you through every feature. Press **?** in the sidebar to take it again.
+
 ## Private by design
 Runs only on `127.0.0.1`, reads `~/.claude/projects` on your machine, and makes no network calls. Layouts are saved to `~/.session-viewer/layouts`.
 

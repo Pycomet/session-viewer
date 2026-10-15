@@ -23,3 +23,14 @@ All **41/41** sessions load through the API without error, each in under 80 ms. 
 - React Flow's zoom controls and minimap stay light-themed in dark mode.
 - An empty session (0 steps) shows a blank canvas with no message in the Flow tab.
 - On the project map, files with the same name in different subfolders (e.g. two `page.tsx`) show only the file name; the full path is in the hover tooltip.
+
+## First-run quest (2026-10-15)
+Checked in Chrome (dark theme) against a fresh browser profile state:
+- First open plays the demo like a live session ("Playing demo…", 22 steps over 15 s), then "Watch Claude work" ticks.
+- Each item ticks as it's done, and the pulse moves to the next target every time: step → folded turn → helper → red error step → Project map button → replay slider → drag.
+- "You're ready" → "Open one of my sessions" closes the card and highlights the session list.
+- Reload mid-tour reopens the demo without replaying; "?" restarts from 0 of 8 with playback; Skip closes the card.
+
+Found and fixed during the check: playback cancelled on first load; empty screen after a mid-tour reload; the highlighted box could be off-screen; Skip during playback froze the demo half-way.
+
+Not checked: light theme (same colour tokens as dark).
