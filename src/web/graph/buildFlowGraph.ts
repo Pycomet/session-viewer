@@ -70,23 +70,31 @@ export function buildFlowGraph(session: Session, opts: FlowOptions): { nodes: Gr
   });
   chain(mainIds);
 
-  const addLanes = (parent: Step) => {
-    for (const lane of lanesByParent.get(parent.id) ?? []) {
-      const steps = lane.steps.filter(isVisible);
-      if (steps.length === 0) continue;
-      if (opts.collapsedLanes.has(lane.id)) {
-        const id = `lane:${lane.id}`;
-        nodes.push({ id, type: 'lane', label: `${lane.label} · ${plural(steps.length)}`, laneId: lane.id, isError: steps.some((s) => s.isError), count: steps.length, step: null });
-        edges.push({ id: `spawn:${parent.id}->${id}`, source: parent.id, target: id, kind: 'spawn' });
-        continue;
-      }
-      edges.push({ id: `spawn:${parent.id}->${steps[0].id}`, source: parent.id, target: steps[0].id, kind: 'spawn' });
-      for (const s of steps) nodes.push(stepNode(s));
-      chain(steps.map((s) => s.id));
-      steps.forEach(addLanes); // helpers started by helpers
+  // parentId is null for helpers with no parent step (e.g. started by a skill): drawn as a standalone branch.
+  const addLane = (lane: Lane, parentId: string | null) => {
+    const steps = lane.steps.filter(isVisible);
+    if (steps.length === 0) return;
+    const spawn = (target: string) => {
+      if (parentId) edges.push({ id: `spawn:${parentId}->${target}`, source: parentId, target, kind: 'spawn' });
+    };
+    if (opts.collapsedLanes.has(lane.id)) {
+      const id = `lane:${lane.id}`;
+      nodes.push({ id, type: 'lane', label: `${lane.label} · ${plural(steps.length)}`, laneId: lane.id, isError: steps.some((s) => s.isError), count: steps.length, step: null });
+      spawn(id);
+      return;
     }
+    spawn(steps[0].id);
+    for (const s of steps) nodes.push(stepNode(s));
+    chain(steps.map((s) => s.id));
+    steps.forEach(addLanes); // helpers started by helpers
+  };
+  const addLanes = (parent: Step) => {
+    for (const lane of lanesByParent.get(parent.id) ?? []) addLane(lane, parent.id);
   };
   expandedSteps.forEach(addLanes);
+  for (const lane of session.lanes) {
+    if (lane.id !== MAIN_LANE && !lane.parentStepId) addLane(lane, null);
+  }
 
   return { nodes, edges };
 }

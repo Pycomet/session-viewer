@@ -57,6 +57,16 @@ describe('buildFlowGraph', () => {
     expect(nodes.map((n) => n.id)).toEqual(['turn:u0']);
   });
 
+  it('still shows helper lanes that have no parent step (e.g. started by a skill)', () => {
+    const s = session(1);
+    s.lanes.push({ id: 'orphan', label: '/code-review', parentStepId: null, steps: [step('o1', 'text', 'orphan'), step('o2', 'text', 'orphan')] });
+    const { nodes, edges } = buildFlowGraph(s, opts(s));
+    expect(nodes.map((n) => n.id)).toEqual(['u0', 'a0', 'o1', 'o2']);
+    expect(edges).toContainEqual({ id: 'next:o1->o2', source: 'o1', target: 'o2', kind: 'next' });
+    const folded = buildFlowGraph(s, opts(s, { collapsedLanes: new Set(['orphan']) }));
+    expect(folded.nodes.find((n) => n.id === 'lane:orphan')).toMatchObject({ type: 'lane', label: '/code-review · 2 steps' });
+  });
+
   it('shows only visible steps during replay', () => {
     const s = session(2);
     const { nodes } = buildFlowGraph(s, opts(s, { visible: new Set(['u0', 'a0', 'u1']) }));
