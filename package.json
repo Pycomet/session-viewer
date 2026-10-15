@@ -1,5 +1,5 @@
 {
-  "name": "session-viewer",
+  "name": "@codefred/session-viewer",
   "version": "0.1.0",
   "description": "See your AI coding agent sessions as a picture",
   "type": "module",
