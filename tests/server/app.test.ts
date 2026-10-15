@@ -60,6 +60,15 @@ describe('app', () => {
     expect((await a.request(`/api/layouts/${ID}/other`)).status).toBe(400);
   });
 
+  it('rejects requests whose Host is not localhost (DNS rebinding)', async () => {
+    const a = await app();
+    expect((await a.request('/api/sessions', { headers: { host: 'evil.example:4300' } })).status).toBe(403);
+    expect((await a.request('/', { headers: { host: 'evil.example' } })).status).toBe(403);
+    expect((await a.request('/', { headers: { host: 'bad host' } })).status).toBe(403);
+    expect((await a.request('/api/sessions', { headers: { host: '127.0.0.1:4300' } })).status).toBe(200);
+    expect((await a.request('/api/sessions', { headers: { host: 'localhost:5173' } })).status).toBe(200);
+  });
+
   it('serves the web app with index.html fallback and blocks traversal', async () => {
     const a = await app();
     expect(await (await a.request('/')).text()).toContain('viewer');

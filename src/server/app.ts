@@ -14,6 +14,7 @@ export interface AppOptions {
 }
 
 const VIEWS = new Set(['flow', 'map']);
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 const TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript',
@@ -24,6 +25,20 @@ const TYPES: Record<string, string> = {
 
 export function createApp({ root, layoutsDir, webDir, pollMs = 1000 }: AppOptions): Hono {
   const app = new Hono();
+
+  // Binding to 127.0.0.1 doesn't stop DNS rebinding: a website can point its own name at us.
+  // Only answer requests addressed to a loopback hostname.
+  app.use('*', async (c, next) => {
+    const host = c.req.header('host');
+    let hostname = '';
+    try {
+      hostname = host ? new URL(`http://${host}`).hostname : new URL(c.req.url).hostname;
+    } catch {
+      /* unparseable Host: rejected below */
+    }
+    if (!LOOPBACK_HOSTS.has(hostname)) return c.text('Forbidden host', 403);
+    await next();
+  });
 
   const resolveSession = async (id: string) => (SESSION_ID_RE.test(id) ? { dir: await findSessionDir(root, id) } : null);
 
