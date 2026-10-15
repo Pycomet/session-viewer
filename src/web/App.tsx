@@ -1,13 +1,18 @@
 import { ReactFlowProvider } from '@xyflow/react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { DEMO_ID, demoSession } from '../core/demo';
 import type { Session, SessionSummary, Step } from '../core/model';
 import { fetchSessions, subscribeSession, type View } from './api';
 import { DetailsPanel } from './components/DetailsPanel';
 import { FlowView } from './components/FlowView';
 import { MapView } from './components/MapView';
+import { QuestCard } from './components/QuestCard';
 import { ReplayBar } from './components/ReplayBar';
 import { SessionList } from './components/SessionList';
 import { timelineOf, visibleUpTo } from './graph/replay';
+import { PLAYBACK_MS, playbackCursor } from './quest/playback';
+import { isComplete, nextItem, questReducer, type QuestEvent } from './quest/quest';
+import { loadQuest, saveQuest } from './quest/storage';
 
 export function App() {
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
@@ -17,36 +22,93 @@ export function App() {
   const [cursor, setCursor] = useState<number | null>(null); // null = live (show everything)
   const [selected, setSelected] = useState<Step | null>(null);
   const [follow, setFollow] = useState(true);
+  const [playing, setPlaying] = useState(false);
+  const [highlightList, setHighlightList] = useState(false);
+  const [quest, dispatch] = useReducer(questReducer, undefined, () => loadQuest());
+  const emit = useCallback((event: QuestEvent) => dispatch({ type: 'event', event }), []);
 
+  useEffect(() => saveQuest(quest), [quest]);
   useEffect(() => void fetchSessions().then(setSessions).catch(() => setSessions([])), []);
+
+  // First run (or "?" pressed): open the demo and play it like a live session.
+  useEffect(() => {
+    if (quest.started) return;
+    dispatch({ type: 'start' });
+    setView('flow');
+    setActiveId(DEMO_ID);
+    setPlaying(true);
+  }, [quest.started]);
+
   useEffect(() => {
     setSession(null);
     setCursor(null);
     setSelected(null);
-    return activeId ? subscribeSession(activeId, setSession) : undefined;
+    if (activeId !== DEMO_ID) setPlaying(false);
+    if (!activeId) return;
+    if (activeId === DEMO_ID) {
+      setSession(demoSession());
+      return;
+    }
+    setHighlightList(false);
+    return subscribeSession(activeId, setSession);
   }, [activeId]);
 
   const timeline = useMemo(() => (session ? timelineOf(session) : []), [session]);
   const visible = useMemo(() => (cursor === null ? null : visibleUpTo(timeline, cursor)), [timeline, cursor]);
 
+  // Demo playback drives the replay cursor from a timer until it finishes or the user takes over.
+  const playStart = useRef(0);
+  useEffect(() => {
+    if (!playing || !session) return;
+    playStart.current = Date.now();
+    setCursor(0);
+    const timer = setInterval(() => {
+      const next = playbackCursor(Date.now() - playStart.current, timeline.length, PLAYBACK_MS);
+      setCursor(next);
+      if (next === null) {
+        setPlaying(false);
+        emit('playback-done');
+      }
+    }, 100);
+    return () => clearInterval(timer);
+  }, [playing, session, timeline.length, emit]);
+
+  const onReplayChange = (c: number | null) => {
+    setPlaying(false);
+    setCursor(c);
+    emit(c === null ? 'playback-done' : 'replay-moved');
+  };
+  const onSelectStep = (s: Step) => {
+    setSelected(s);
+    emit('step-selected');
+    if (s.isError) emit('error-selected');
+  };
+  const showMap = () => {
+    setView('map');
+    emit('view-map');
+  };
+
+  const questOpen = quest.started && !quest.dismissed;
+  const pulse = questOpen && !isComplete(quest) && !playing ? nextItem(quest)?.pulse ?? null : null;
+
   return (
     <div className="app">
-      <SessionList sessions={sessions} activeId={activeId} onSelect={setActiveId} />
+      <SessionList sessions={sessions} activeId={activeId} onSelect={setActiveId} onTour={() => dispatch({ type: 'reset' })} highlight={highlightList} />
       <main className="main">
         {session ? (
           <>
             <div className="toolbar">
               <strong style={{ marginRight: 'auto' }}>{session.title ?? session.id.slice(0, 8)}</strong>
               <button aria-pressed={view === 'flow'} onClick={() => setView('flow')}>Flow</button>
-              <button aria-pressed={view === 'map'} onClick={() => setView('map')}>Project map</button>
+              <button aria-pressed={view === 'map'} className={pulse === 'map-button' ? 'pulse' : ''} onClick={showMap}>Project map</button>
               <label><input type="checkbox" checked={follow} onChange={(e) => setFollow(e.target.checked)} /> Follow latest</label>
             </div>
             <div className="canvas">
               <ReactFlowProvider key={`${session.id}-${view}`}>
                 {view === 'flow' ? (
-                  <FlowView session={session} visible={visible} onSelect={setSelected} follow={follow && cursor === null} />
+                  <FlowView session={session} visible={visible} onSelect={onSelectStep} follow={follow && (cursor === null || playing)} pulse={pulse} onQuestEvent={emit} />
                 ) : (
-                  <MapView session={session} visible={visible} />
+                  <MapView session={session} visible={visible} onQuestEvent={emit} />
                 )}
               </ReactFlowProvider>
             </div>
@@ -55,8 +117,22 @@ export function App() {
         ) : (
           <p className="empty">{activeId ? 'Loading…' : 'Pick a session on the left.'}</p>
         )}
+        {questOpen && (
+          <QuestCard
+            state={quest}
+            onSkip={() => {
+              setPlaying(false);
+              dispatch({ type: 'dismiss' });
+            }}
+            onFinish={() => {
+              dispatch({ type: 'dismiss' });
+              setActiveId(null);
+              setHighlightList(true);
+            }}
+          />
+        )}
       </main>
-      {session && <ReplayBar timeline={timeline} cursor={cursor} onChange={setCursor} />}
+      {session && <ReplayBar timeline={timeline} cursor={cursor} onChange={onReplayChange} playing={playing} pulse={pulse === 'replay'} />}
     </div>
   );
 }

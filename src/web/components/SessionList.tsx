@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { DEMO_ID, DEMO_TITLE } from '../../core/demo';
 import type { SessionSummary } from '../../core/model';
 
 const ago = (iso: string) => {
@@ -9,15 +10,22 @@ const ago = (iso: string) => {
 };
 const base = (p: string | null) => (p ? p.split('/').filter(Boolean).pop() ?? p : 'unknown project');
 
-export function SessionList({ sessions, activeId, onSelect }: { sessions: SessionSummary[]; activeId: string | null; onSelect: (id: string) => void }) {
+export function SessionList({ sessions, activeId, onSelect, onTour, highlight }: { sessions: SessionSummary[]; activeId: string | null; onSelect: (id: string) => void; onTour: () => void; highlight: boolean }) {
   const [q, setQ] = useState('');
   const shown = useMemo(() => {
     const needle = q.toLowerCase();
     return sessions.filter((s) => `${s.title ?? ''} ${s.cwd ?? ''} ${s.id}`.toLowerCase().includes(needle));
   }, [sessions, q]);
   return (
-    <nav className="sidebar" aria-label="Sessions">
-      <input placeholder="Filter sessions" value={q} onChange={(e) => setQ(e.target.value)} />
+    <nav className={`sidebar${highlight ? ' pulse' : ''}`} aria-label="Sessions">
+      <div className="sidebar-head">
+        <input placeholder="Filter sessions" value={q} onChange={(e) => setQ(e.target.value)} />
+        <button className="tour-button" onClick={onTour} title="Take the tour" aria-label="Take the tour">?</button>
+      </div>
+      <button className="session-item demo-item" aria-current={activeId === DEMO_ID} onClick={() => onSelect(DEMO_ID)}>
+        ▶ {DEMO_TITLE.replace('Demo: ', 'Demo: take the tour · ')}
+        <small>Built-in example session</small>
+      </button>
       {shown.length === 0 && <p className="empty" style={{ padding: 12 }}>No sessions found.</p>}
       {shown.map((s) => (
         <button key={s.id} className="session-item" aria-current={s.id === activeId} onClick={() => onSelect(s.id)}>

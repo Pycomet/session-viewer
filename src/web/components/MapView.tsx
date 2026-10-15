@@ -4,12 +4,13 @@ import type { Session } from '../../core/model';
 import { buildProjectMap } from '../../core/projectMap';
 import { folderHeight, FOLDER_W, heat, mapLayout } from '../graph/mapLayout';
 import { mergePositions } from '../graph/positions';
+import type { QuestEvent } from '../quest/quest';
 import { useSavedLayout } from '../useSavedLayout';
 import { FolderNode } from './FolderNode';
 
 const nodeTypes = { folder: FolderNode };
 
-export function MapView({ session, visible }: { session: Session; visible: Set<string> | null }) {
+export function MapView({ session, visible, onQuestEvent }: { session: Session; visible: Set<string> | null; onQuestEvent: (e: QuestEvent) => void }) {
   const map = useMemo(() => buildProjectMap(session, visible), [session, visible]);
   const { saved, savePosition, reset } = useSavedLayout(session.id, 'map');
   const positions = useMemo(() => mergePositions(mapLayout(map), saved), [map, saved]);
@@ -22,7 +23,10 @@ export function MapView({ session, visible }: { session: Session; visible: Set<s
 
   if (map.folders.length === 0) return <p className="empty">No files read or edited yet.</p>;
   return (
-    <ReactFlow nodes={nodes} edges={[]} nodeTypes={nodeTypes} onNodesChange={onNodesChange} onNodeDragStop={(_, n) => savePosition(n.id, n.position)} fitView minZoom={0.1}>
+    <ReactFlow nodes={nodes} edges={[]} nodeTypes={nodeTypes} onNodesChange={onNodesChange} onNodeDragStop={(_, n) => {
+        savePosition(n.id, n.position);
+        onQuestEvent('node-dragged');
+      }} fitView minZoom={0.1}>
       <Background />
       <Controls />
       <Panel position="top-right">

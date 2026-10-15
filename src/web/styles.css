@@ -36,3 +36,28 @@ body { margin: 0; }
 .details pre { white-space: pre-wrap; word-break: break-word; font-size: 12px; background: var(--bg); padding: 8px; border-radius: 6px; }
 .replay { grid-column: 2; display: flex; gap: 12px; align-items: center; padding: 8px 12px; border-top: 1px solid var(--line); background: var(--panel); font-size: 12px; }
 .replay input { flex: 1; }
+.sidebar-head { display: flex; align-items: center; gap: 6px; padding-right: 12px; }
+.sidebar-head input { flex: 1; width: auto; margin-right: 0; }
+.tour-button { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; font-weight: 700; }
+.demo-item { font-weight: 600; color: var(--accent); }
+.quest { position: absolute; right: 16px; bottom: 16px; z-index: 20; width: 300px; padding: 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); box-shadow: 0 8px 24px rgb(0 0 0 / 0.18); font-size: 13px; }
+.quest header { display: flex; justify-content: space-between; margin-bottom: 8px; }
+.quest header span { color: var(--muted); }
+.quest-bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin-bottom: 10px; }
+.quest-bar div { height: 100%; background: var(--accent); transition: width 0.4s ease; }
+.quest ol { list-style: none; margin: 0 0 8px; padding: 0; }
+.quest li { display: flex; gap: 8px; padding: 4px 0; color: var(--muted); }
+.quest li.current { color: var(--ink); font-weight: 600; }
+.quest li.ticked { color: var(--ink); }
+.quest li small { display: block; font-weight: 400; color: var(--muted); margin-top: 2px; }
+.quest-check { flex: none; width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--line); display: grid; place-items: center; font-size: 11px; }
+.quest li.ticked .quest-check { background: var(--text); border-color: var(--text); color: #fff; animation: tick 0.3s ease; }
+.quest-skip { background: none; border: 0; padding: 0; color: var(--muted); cursor: pointer; font: inherit; font-size: 12px; text-decoration: underline; }
+.quest-primary { margin-top: 8px; padding: 6px 12px; border-radius: 6px; border: 0; background: var(--accent); color: #fff; cursor: pointer; font: inherit; }
+.pulse { animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); } 50% { box-shadow: 0 0 0 8px transparent; } }
+@keyframes tick { from { transform: scale(0.4); } to { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .pulse { animation: none; outline: 2px solid var(--accent); outline-offset: 2px; }
+  .quest li.ticked .quest-check, .quest-bar div { animation: none; transition: none; }
+}
