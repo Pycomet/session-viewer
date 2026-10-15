@@ -5,5 +5,6 @@ export default defineConfig({
   root: 'src/web',
   plugins: [react()],
   build: { outDir: '../../dist/web', emptyOutDir: true },
-  server: { port: 5173, proxy: { '/api': 'http://127.0.0.1:4300' } },
+  // Trailing slash matters: a bare '/api' prefix would also proxy the /api.ts module away from Vite.
+  server: { port: 5173, proxy: { '/api/': 'http://127.0.0.1:4300' } },
 });
